@@ -144,7 +144,7 @@ export default function Chatbot({ doctors, hospitals, onBookDoctor, onOpenRef }:
     if (!apiKey || apiKey === "YOUR_GROQ_API_KEY_HERE") throw new Error("NO_KEY");
 
     const relevantDoctors = getDoctorsForSpecs(specs);
-    historyRef.current = [...historyRef.current, { role: "user", content: userText }].slice(-MAX_HISTORY);
+    historyRef.current = [...historyRef.current, { role: "user" as const, content: userText }].slice(-MAX_HISTORY);
 
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -344,12 +344,15 @@ export default function Chatbot({ doctors, hospitals, onBookDoctor, onOpenRef }:
   }, []);
 
   const finalizeVoice = useCallback(() => {
+    const wasListening = micState === "listening";
     stopListening();
     const text = transcriptRef.current.trim();
     if (!text) return;
-    setMicState("processing");
-    setTimeout(() => { setMicState("idle"); sendMessage(text); }, 300);
-  }, [stopListening, sendMessage]);
+    if (wasListening) {
+      setMicState("processing");
+      setTimeout(() => { setMicState("idle"); sendMessage(text); }, 300);
+    }
+  }, [stopListening, sendMessage, micState]);
 
   const toggleVoice = useCallback(() => {
     const SR = (window as Window & typeof globalThis & { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition
@@ -395,11 +398,9 @@ export default function Chatbot({ doctors, hospitals, onBookDoctor, onOpenRef }:
       if (m) setMessages((prev) => [...prev, { id: uid(), role: "bot", text: m }]);
     };
     rec.onend = () => {
-      if (micState === "listening") {
-        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-        if (transcriptRef.current.trim()) finalizeVoice();
-        else setMicState("idle");
-      }
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      if (transcriptRef.current.trim()) finalizeVoice();
+      else setMicState("idle");
     };
 
     try { rec.start(); } catch { setMicState("idle"); }
